@@ -1,0 +1,17 @@
+{
+  "name": "leadflow",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LeadFlow for Designers — Full-Stack Lead Marketplace",
+  "scripts": {
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "seed": "cd backend && node src/seed.js",
+    "build:frontend": "cd frontend && npm run build"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
