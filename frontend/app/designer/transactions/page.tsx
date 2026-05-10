@@ -7,11 +7,58 @@ import { StatusPill } from '@/components/ui/StatCard';
 import useAuthStore from '@/lib/store';
 import api from '@/lib/api';
 
+declare global {
+  interface Window {
+    Razorpay?: any;
+  }
+}
+
 const DEFAULT_PACKS = [
-  { key: 'starter', credits: 50, bonus: 0, price: 999, label: 'Starter', highlight: false },
-  { key: 'pro', credits: 150, bonus: 10, price: 2499, label: 'Pro', highlight: true },
-  { key: 'enterprise', credits: 500, bonus: 50, price: 6999, label: 'Enterprise', highlight: false },
+  {
+    key: 'starter',
+    credits: 50,
+    bonus: 0,
+    price: 999,
+    label: 'Starter',
+    highlight: false,
+  },
+  {
+    key: 'pro',
+    credits: 150,
+    bonus: 10,
+    price: 2499,
+    label: 'Pro',
+    highlight: true,
+  },
+  {
+    key: 'enterprise',
+    credits: 500,
+    bonus: 50,
+    price: 6999,
+    label: 'Enterprise',
+    highlight: false,
+  },
 ];
+
+const loadRazorpayScript = () => {
+  return new Promise<boolean>((resolve) => {
+    if (typeof window === 'undefined') {
+      resolve(false);
+      return;
+    }
+
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
 
 export default function TransactionsPage() {
   const { user, setCredits, refreshCredits } = useAuthStore();
@@ -37,19 +84,24 @@ export default function TransactionsPage() {
   const fetchPacks = async () => {
     try {
       const { data } = await api.get('/payments/packs');
-
-      // BUG FIX: backend returns { packs: { starter: {...}, pro: {...} } } — an object, not an array
       const packsObj = data?.packs || data?.data?.packs || null;
 
-      if (packsObj && typeof packsObj === 'object' && !Array.isArray(packsObj)) {
-        const converted = Object.entries(packsObj).map(([key, p]: [string, any]) => ({
-          key,
-          credits: p.credits || 0,
-          bonus: p.bonusCredits || p.bonus || 0,
-          price: p.priceINR || p.price || p.amountINR || 0,
-          label: key.charAt(0).toUpperCase() + key.slice(1),
-          highlight: key === 'pro',
-        }));
+      if (
+        packsObj &&
+        typeof packsObj === 'object' &&
+        !Array.isArray(packsObj)
+      ) {
+        const converted = Object.entries(packsObj).map(
+          ([key, pack]: [string, any]) => ({
+            key,
+            credits: pack.credits || 0,
+            bonus: pack.bonusCredits || pack.bonus || 0,
+            price: pack.priceINR || pack.price || pack.amountINR || 0,
+            label: key.charAt(0).toUpperCase() + key.slice(1),
+            highlight: key === 'pro',
+          })
+        );
+
         setPacks(converted);
       }
     } catch (err) {
@@ -63,17 +115,51 @@ export default function TransactionsPage() {
       const { data } = await api.get('/users/transactions');
 
       const transactionData =
-        data?.transactions ||
-        data?.data?.transactions ||
-        data?.data ||
-        data ||
-        [];
+        data?.transactions || data?.data?.transactions || data?.data || data || [];
 
       setTransactions(Array.isArray(transactionData) ? transactionData : []);
     } catch (err) {
       console.error('Failed to fetch transactions:', err);
       setTransactions([]);
     }
+  };
+
+  const verifyPaymentOnBackend = async ({
+    orderId,
+    paymentId,
+    signature,
+    pack,
+    mockSuccess,
+  }: {
+    orderId?: string;
+    paymentId?: string;
+    signature?: string;
+    pack: string;
+    mockSuccess?: boolean;
+  }) => {
+    const { data } = await api.post('/payments/verify', {
+      orderId,
+      paymentId,
+      signature,
+      pack,
+      mockSuccess,
+    });
+
+    const totalCredits =
+      data?.totalCredits || data?.data?.totalCredits || data?.credits || 0;
+
+    const creditsAdded =
+      data?.creditsAdded || data?.data?.creditsAdded || 0;
+
+    if (totalCredits) {
+      setCredits(totalCredits);
+    }
+
+    setSuccessMsg(`${creditsAdded || 'Credits'} added to your account!`);
+
+    await Promise.all([fetchTransactions(), refreshCredits()]);
+
+    setTimeout(() => setSuccessMsg(''), 4000);
   };
 
   const handleBuy = async () => {
@@ -88,43 +174,85 @@ export default function TransactionsPage() {
 
       const order = orderData?.order || orderData?.data?.order || orderData;
 
-      const { data: verifyData } = await api.post('/payments/verify', {
-        orderId: order?.id || order?._id,
-        paymentId: `pay_mock_${Date.now()}`,
-        pack: selectedPack,
-        mockSuccess: true,
+      if (!order?.id) {
+        throw new Error('Invalid payment order received from server');
+      }
+
+      if (order.paymentMode === 'mock') {
+        await verifyPaymentOnBackend({
+          orderId: order.id,
+          paymentId: `pay_mock_${Date.now()}`,
+          pack: selectedPack,
+          mockSuccess: true,
+        });
+
+        return;
+      }
+
+      const scriptLoaded = await loadRazorpayScript();
+
+      if (!scriptLoaded || !window.Razorpay) {
+        throw new Error('Razorpay SDK failed to load');
+      }
+
+      const options = {
+        key: order.keyId,
+        amount: order.amount,
+        currency: order.currency || 'INR',
+        name: 'LeadFlow',
+        description: `${selectedPack} credit pack`,
+        order_id: order.id,
+        prefill: {
+          name: user?.name || '',
+          email: user?.email || '',
+        },
+        theme: {
+          color: '#7c5cfc',
+        },
+        handler: async function (response: any) {
+          await verifyPaymentOnBackend({
+            orderId: response.razorpay_order_id,
+            paymentId: response.razorpay_payment_id,
+            signature: response.razorpay_signature,
+            pack: selectedPack,
+          });
+        },
+        modal: {
+          ondismiss: function () {
+            setErrorMsg('Payment cancelled.');
+            setTimeout(() => setErrorMsg(''), 4000);
+          },
+        },
+      };
+
+      const razorpay = new window.Razorpay(options);
+
+      razorpay.on('payment.failed', function (response: any) {
+        console.error('Razorpay payment failed:', response);
+        setErrorMsg(
+          response?.error?.description || 'Payment failed. Please try again.'
+        );
+        setTimeout(() => setErrorMsg(''), 4000);
       });
 
-      const totalCredits =
-        verifyData?.totalCredits ||
-        verifyData?.data?.totalCredits ||
-        verifyData?.credits ||
-        user?.credits ||
-        0;
-
-      const creditsAdded =
-        verifyData?.creditsAdded ||
-        verifyData?.data?.creditsAdded ||
-        0;
-
-      setCredits(totalCredits);
-      setSuccessMsg(`${creditsAdded || 'Credits'} added to your account!`);
-
-      await Promise.all([fetchTransactions(), refreshCredits()]);
-
-      setTimeout(() => setSuccessMsg(''), 4000);
+      razorpay.open();
     } catch (err: any) {
       console.error('Payment failed:', err);
-      setErrorMsg(err.response?.data?.error || 'Payment failed. Please try again.');
+      setErrorMsg(
+        err?.response?.data?.error ||
+        err?.message ||
+        'Payment failed. Please try again.'
+      );
       setTimeout(() => setErrorMsg(''), 4000);
     } finally {
       setIsBuying(false);
     }
   };
 
-  const formatDate = (d?: string) => {
-    if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-IN', {
+  const formatDate = (date?: string) => {
+    if (!date) return '—';
+
+    return new Date(date).toLocaleDateString('en-IN', {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
@@ -138,7 +266,7 @@ export default function TransactionsPage() {
     bonus: { label: 'Bonus', class: 'badge-green' },
   };
 
-  const selectedPackData = packs.find((x) => x.key === selectedPack);
+  const selectedPackData = packs.find((pack) => pack.key === selectedPack);
 
   return (
     <div className="flex min-h-screen bg-bg">
@@ -148,6 +276,7 @@ export default function TransactionsPage() {
         <h1 className="font-head text-2xl font-extrabold mb-1">
           Credits & Transactions
         </h1>
+
         <p className="text-gray-400 text-sm mb-6">
           Buy credits and view your transaction history.
         </p>
@@ -166,6 +295,7 @@ export default function TransactionsPage() {
 
         <div className="card p-6 mb-6">
           <div className="font-head text-base font-bold mb-1">Buy Credits</div>
+
           <p className="text-xs text-gray-500 mb-5">
             Credits never expire. Use them to buy leads anytime.
           </p>
@@ -190,7 +320,9 @@ export default function TransactionsPage() {
                 <div className="font-head text-3xl font-extrabold text-purple-400">
                   {pack.credits}
                 </div>
+
                 <div className="text-xs text-gray-500 mb-1">credits</div>
+
                 <div className="text-sm font-semibold mb-0.5">
                   ₹{Number(pack.price || 0).toLocaleString('en-IN')}
                 </div>
@@ -232,6 +364,7 @@ export default function TransactionsPage() {
               ) : (
                 <Star size={15} fill="currentColor" />
               )}
+
               {isBuying ? 'Processing...' : 'Pay with Razorpay →'}
             </button>
           </div>
@@ -246,12 +379,12 @@ export default function TransactionsPage() {
         <div className="card p-5 mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-xs text-gray-500 mb-1">
-                Current Balance
-              </div>
+              <div className="text-xs text-gray-500 mb-1">Current Balance</div>
+
               <div className="font-head text-4xl font-extrabold text-yellow-400">
                 {user?.credits ?? 0}
               </div>
+
               <div className="text-xs text-gray-500 mt-1">
                 ≈ {Math.floor((user?.credits ?? 0) / 5)} leads available
               </div>
@@ -274,25 +407,33 @@ export default function TransactionsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-bg-3 border-b border-white/[0.07]">
-                  {['Date', 'Type', 'Description', 'Credits', 'Amount', 'Status'].map(
-                    (h) => (
-                      <th
-                        key={h}
-                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide"
-                      >
-                        {h}
-                      </th>
-                    )
-                  )}
+                  {[
+                    'Date',
+                    'Type',
+                    'Description',
+                    'Credits',
+                    'Amount',
+                    'Status',
+                  ].map((heading) => (
+                    <th
+                      key={heading}
+                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide"
+                    >
+                      {heading}
+                    </th>
+                  ))}
                 </tr>
               </thead>
 
               <tbody>
                 {isLoading ? (
-                  [...Array(5)].map((_, i) => (
-                    <tr key={i} className="border-t border-white/[0.05]">
-                      {[...Array(6)].map((_, j) => (
-                        <td key={j} className="px-4 py-4">
+                  [...Array(5)].map((_, rowIndex) => (
+                    <tr
+                      key={rowIndex}
+                      className="border-t border-white/[0.05]"
+                    >
+                      {[...Array(6)].map((_, colIndex) => (
+                        <td key={colIndex} className="px-4 py-4">
                           <div className="h-3 bg-white/5 rounded animate-pulse" />
                         </td>
                       ))}
@@ -308,25 +449,31 @@ export default function TransactionsPage() {
                     </td>
                   </tr>
                 ) : (
-                  transactions.map((t) => {
-                    const cfg = TYPE_CONFIG[t.type] || {
-                      label: t.type || 'Transaction',
+                  transactions.map((transaction) => {
+                    const cfg = TYPE_CONFIG[transaction.type] || {
+                      label: transaction.type || 'Transaction',
                       class: 'badge-gray',
                     };
 
                     const creditsDelta =
-                      t.creditsDelta ?? t.credits ?? t.delta ?? 0;
+                      transaction.creditsDelta ??
+                      transaction.credits ??
+                      transaction.delta ??
+                      0;
 
                     const amount =
-                      t.amountINR ?? t.amount ?? t.price ?? null;
+                      transaction.amountINR ??
+                      transaction.amount ??
+                      transaction.price ??
+                      null;
 
                     return (
                       <tr
-                        key={t._id}
+                        key={transaction._id}
                         className="border-t border-white/[0.05] hover:bg-white/[0.02] transition-colors"
                       >
                         <td className="px-4 py-3.5 text-gray-400 text-xs">
-                          {formatDate(t.createdAt)}
+                          {formatDate(transaction.createdAt)}
                         </td>
 
                         <td className="px-4 py-3.5">
@@ -338,7 +485,9 @@ export default function TransactionsPage() {
                         </td>
 
                         <td className="px-4 py-3.5 text-gray-300 max-w-xs truncate">
-                          {t.description || t.title || 'Transaction completed'}
+                          {transaction.description ||
+                            transaction.title ||
+                            'Transaction completed'}
                         </td>
 
                         <td
@@ -359,7 +508,11 @@ export default function TransactionsPage() {
 
                         <td className="px-4 py-3.5">
                           <StatusPill
-                            status={t.status === 'success' ? 'open' : 'pending'}
+                            status={
+                              transaction.status === 'success'
+                                ? 'open'
+                                : 'pending'
+                            }
                           />
                         </td>
                       </tr>
