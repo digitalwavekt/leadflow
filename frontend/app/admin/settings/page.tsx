@@ -1,18 +1,68 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { adminAPI } from '@/lib/api';
 
 export default function AdminSettingsPage() {
-    const [commission, setCommission] = useState('10');
+    const [commissionPercent, setCommissionPercent] = useState('10');
     const [baseLeadPrice, setBaseLeadPrice] = useState('199');
     const [highQualityLeadPrice, setHighQualityLeadPrice] = useState('499');
     const [paymentMode, setPaymentMode] = useState('mock');
+    const [maintenanceMode, setMaintenanceMode] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+
     const [message, setMessage] = useState('');
 
-    const handleSave = () => {
-        setMessage('Settings saved locally. Backend API integration pending.');
-        setTimeout(() => setMessage(''), 3000);
+    useEffect(() => {
+        loadSettings();
+    }, []);
+
+    const loadSettings = async () => {
+        try {
+            setLoading(true);
+
+            const res = await adminAPI.getSettings();
+            const settings = res.data.settings || res.data.data || res.data;
+
+            setCommissionPercent(String(settings.commissionPercent ?? 10));
+            setBaseLeadPrice(String(settings.baseLeadPrice ?? 199));
+            setHighQualityLeadPrice(String(settings.highQualityLeadPrice ?? 499));
+            setPaymentMode(settings.paymentMode || 'mock');
+            setMaintenanceMode(Boolean(settings.maintenanceMode));
+        } catch (error) {
+            console.error('Load settings error:', error);
+            setMessage('Failed to load settings from API');
+        } finally {
+            setLoading(false);
+        }
     };
+
+    const handleSave = async () => {
+        try {
+            setSaving(true);
+
+            await adminAPI.updateSettings({
+                commissionPercent: Number(commissionPercent),
+                baseLeadPrice: Number(baseLeadPrice),
+                highQualityLeadPrice: Number(highQualityLeadPrice),
+                paymentMode,
+                maintenanceMode,
+            });
+
+            setMessage('Settings saved successfully in database');
+            setTimeout(() => setMessage(''), 3000);
+        } catch (error) {
+            console.error('Save settings error:', error);
+            setMessage('Failed to save settings in database');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    if (loading) {
+        return <p className="text-gray-400">Loading settings...</p>;
+    }
 
     return (
         <>
@@ -34,7 +84,7 @@ export default function AdminSettingsPage() {
                         Pricing Settings
                     </h2>
                     <p className="text-sm text-gray-500">
-                        Configure LeadFlow platform pricing.
+                        These values are saved in MongoDB and controlled by admin.
                     </p>
                 </div>
 
@@ -45,10 +95,9 @@ export default function AdminSettingsPage() {
                         </label>
                         <input
                             type="number"
-                            value={commission}
-                            onChange={(e) => setCommission(e.target.value)}
+                            value={commissionPercent}
+                            onChange={(e) => setCommissionPercent(e.target.value)}
                             className="input w-full"
-                            placeholder="10"
                         />
                     </div>
 
@@ -61,7 +110,6 @@ export default function AdminSettingsPage() {
                             value={baseLeadPrice}
                             onChange={(e) => setBaseLeadPrice(e.target.value)}
                             className="input w-full"
-                            placeholder="199"
                         />
                     </div>
 
@@ -74,7 +122,6 @@ export default function AdminSettingsPage() {
                             value={highQualityLeadPrice}
                             onChange={(e) => setHighQualityLeadPrice(e.target.value)}
                             className="input w-full"
-                            placeholder="499"
                         />
                     </div>
 
@@ -93,9 +140,34 @@ export default function AdminSettingsPage() {
                     </div>
                 </div>
 
+                <div className="border-t border-white/10 pt-5 flex items-center justify-between gap-4">
+                    <div>
+                        <h3 className="font-medium">Maintenance Mode</h3>
+                        <p className="text-xs text-gray-500">
+                            Later this can block client/designer actions temporarily.
+                        </p>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={() => setMaintenanceMode((prev) => !prev)}
+                        className={`px-4 py-2 rounded-xl text-sm border ${maintenanceMode
+                                ? 'bg-red-500/15 text-red-400 border-red-500/30'
+                                : 'bg-green-500/15 text-green-400 border-green-500/30'
+                            }`}
+                    >
+                        {maintenanceMode ? 'Enabled' : 'Disabled'}
+                    </button>
+                </div>
+
                 <div className="border-t border-white/10 pt-5">
-                    <button type="button" onClick={handleSave} className="btn-primary">
-                        Save Settings
+                    <button
+                        type="button"
+                        onClick={handleSave}
+                        disabled={saving}
+                        className="btn-primary disabled:opacity-60"
+                    >
+                        {saving ? 'Saving...' : 'Save Settings'}
                     </button>
                 </div>
             </div>

@@ -82,6 +82,10 @@ export const adminAPI = {
   getUsers: (params?: ApiParams) => api.get("/admin/users", { params }),
   getTransactions: (params?: ApiParams) =>
     api.get("/admin/transactions", { params }),
+  getSettings: () => api.get('/admin/settings'),
+  updateSettings: (data: ApiData) => api.patch('/admin/settings', data),
+
+
   verifyLead: (id: string, quality: string) =>
     api.patch(`/admin/leads/${id}/verify`, { quality }),
   rejectLead: (id: string, reason?: string) =>

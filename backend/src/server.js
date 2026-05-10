@@ -11,6 +11,7 @@ const connectDB = require('./config/database');
 const { initSocket } = require('./config/socket');
 const { unlockExpiredLeads } = require('./services/leadLockService');
 const notificationRoutes = require("./routes/notifications");
+const settingsRoutes = require('./routes/settingsRoutes');
 
 // Route imports
 const authRoutes = require('./routes/auth');
@@ -21,6 +22,7 @@ const adminRoutes = require('./routes/admin');
 const uploadRoutes = require('./routes/upload');
 
 const app = express();
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 
 // Initialize Socket.io
@@ -74,6 +76,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/upload', uploadRoutes);
 // BUG FIX: notifications route must be AFTER body parsing middleware
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/admin/settings', settingsRoutes);
 
 // ── 404 Handler ──────────────────────────────────────────────────────────────
 app.use((req, res) => {
