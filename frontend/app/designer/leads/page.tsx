@@ -24,7 +24,14 @@ export default function PurchasedLeadsPage() {
   const fetchPurchased = async () => {
     try {
       const { data } = await api.get('/users/purchased-leads');
-      setLeads(data.leads);
+      const leadsData =
+        data?.leads ||
+        data?.data?.leads ||
+        data?.data ||
+        data ||
+        [];
+
+      setLeads(Array.isArray(leadsData) ? leadsData : []);
     } catch {
       setLeads(MOCK_PURCHASED);
     } finally {
