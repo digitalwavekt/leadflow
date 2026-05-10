@@ -42,7 +42,7 @@ const transactionSchema = new mongoose.Schema(
     paymentGateway: {
       type: String,
       enum: ['razorpay', 'mock'],
-      default: null,
+      default: 'mock',
     },
     paymentId: { type: String }, // Gateway transaction ID
     orderId: { type: String },   // Gateway order ID
