@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  LayoutDashboard, Star, BarChart2, User, CreditCard, Bell, LogOut, Zap,
+  LayoutDashboard, Star, BarChart2, User, CreditCard, LogOut, Bell, Zap
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import useAuthStore from '@/lib/store';
