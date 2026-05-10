@@ -41,7 +41,7 @@ const transactionSchema = new mongoose.Schema(
     // For credit_purchase: payment gateway info
     paymentGateway: {
       type: String,
-      enum: ['razorpay', 'stripe', 'manual', null],
+      enum: ['razorpay', 'mock'],
       default: null,
     },
     paymentId: { type: String }, // Gateway transaction ID
