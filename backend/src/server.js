@@ -10,6 +10,7 @@ const cron = require('node-cron');
 const connectDB = require('./config/database');
 const { initSocket } = require('./config/socket');
 const { unlockExpiredLeads } = require('./services/leadLockService');
+const notificationRoutes = require("./routes/notifications");
 
 // Route imports
 const authRoutes = require('./routes/auth');
@@ -21,6 +22,7 @@ const uploadRoutes = require('./routes/upload');
 
 const app = express();
 const server = http.createServer(app);
+app.use("/api/notifications", notificationRoutes);
 
 // Initialize Socket.io
 initSocket(server);
