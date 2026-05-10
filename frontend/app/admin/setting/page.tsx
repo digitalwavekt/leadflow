@@ -4,8 +4,8 @@ import { useState } from 'react';
 
 export default function AdminSettingsPage() {
     const [commission, setCommission] = useState('10');
-    const [leadBasePrice, setLeadBasePrice] = useState('199');
-    const [highQualityPrice, setHighQualityPrice] = useState('499');
+    const [baseLeadPrice, setBaseLeadPrice] = useState('199');
+    const [highQualityLeadPrice, setHighQualityLeadPrice] = useState('499');
     const [paymentMode, setPaymentMode] = useState('mock');
     const [message, setMessage] = useState('');
 
@@ -15,10 +15,11 @@ export default function AdminSettingsPage() {
     };
 
     return (
-        <div>
+        <>
             <h1 className="font-head text-2xl font-extrabold mb-1">Settings</h1>
+
             <p className="text-gray-400 text-sm mb-6">
-                Manage LeadFlow pricing, payment mode, and platform rules.
+                Manage pricing, commission, payment mode, and platform rules.
             </p>
 
             {message && (
@@ -33,7 +34,7 @@ export default function AdminSettingsPage() {
                         Pricing Settings
                     </h2>
                     <p className="text-sm text-gray-500">
-                        Configure platform commission and lead pricing.
+                        Configure LeadFlow platform pricing.
                     </p>
                 </div>
 
@@ -43,9 +44,9 @@ export default function AdminSettingsPage() {
                             Platform Commission %
                         </label>
                         <input
+                            type="number"
                             value={commission}
                             onChange={(e) => setCommission(e.target.value)}
-                            type="number"
                             className="input w-full"
                             placeholder="10"
                         />
@@ -56,9 +57,9 @@ export default function AdminSettingsPage() {
                             Base Lead Price ₹
                         </label>
                         <input
-                            value={leadBasePrice}
-                            onChange={(e) => setLeadBasePrice(e.target.value)}
                             type="number"
+                            value={baseLeadPrice}
+                            onChange={(e) => setBaseLeadPrice(e.target.value)}
                             className="input w-full"
                             placeholder="199"
                         />
@@ -69,9 +70,9 @@ export default function AdminSettingsPage() {
                             High Quality Lead Price ₹
                         </label>
                         <input
-                            value={highQualityPrice}
-                            onChange={(e) => setHighQualityPrice(e.target.value)}
                             type="number"
+                            value={highQualityLeadPrice}
+                            onChange={(e) => setHighQualityLeadPrice(e.target.value)}
                             className="input w-full"
                             placeholder="499"
                         />
@@ -93,11 +94,11 @@ export default function AdminSettingsPage() {
                 </div>
 
                 <div className="border-t border-white/10 pt-5">
-                    <button onClick={handleSave} className="btn-primary">
+                    <button type="button" onClick={handleSave} className="btn-primary">
                         Save Settings
                     </button>
                 </div>
             </div>
-        </div>
+        </>
     );
 }
