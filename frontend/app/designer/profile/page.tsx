@@ -99,7 +99,11 @@ export default function ProfilePage() {
               </div>
               <div>
                 <label className="label">Email</label>
-                <input className="input" value={profile.email} disabled className="input opacity-60 cursor-not-allowed" />
+                <input
+                  className="input opacity-60 cursor-not-allowed"
+                  value={profile.email}
+                  disabled
+                />
               </div>
               <div>
                 <label className="label">Phone</label>
@@ -129,11 +133,10 @@ export default function ProfilePage() {
                       key={s}
                       type="button"
                       onClick={() => toggleSpec(s)}
-                      className={`px-3 py-1.5 rounded-full text-xs border transition-all ${
-                        profile.specializations.includes(s)
+                      className={`px-3 py-1.5 rounded-full text-xs border transition-all ${profile.specializations.includes(s)
                           ? 'bg-purple-500/20 border-purple-500 text-purple-300'
                           : 'border-white/10 text-gray-400 hover:border-white/20 hover:text-white'
-                      }`}
+                        }`}
                     >
                       {s}
                     </button>
