@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { adminAPI } from '@/lib/api';
+import { AdminSidebar } from '@/components/admin/AdminSidebar';
 
 export default function AdminUsersPage() {
     const [users, setUsers] = useState<any[]>([]);
