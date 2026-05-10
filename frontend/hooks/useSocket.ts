@@ -90,7 +90,7 @@ export function useSocket() {
   }, [token, user, setCredits]);
 
   const on = useCallback(
-    (event: string, handler: (...args: unknown[]) => void) => {
+    (event: string, handler: (...args: any[]) => void) => {
       socketRef.current?.on(event, handler);
 
       return () => {
@@ -101,7 +101,7 @@ export function useSocket() {
   );
 
   const off = useCallback(
-    (event: string, handler?: (...args: unknown[]) => void) => {
+    (event: string, handler?: (...args: any[]) => void) => {
       socketRef.current?.off(event, handler);
     },
     []
