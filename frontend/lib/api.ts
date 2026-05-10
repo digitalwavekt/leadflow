@@ -116,3 +116,5 @@ export const notificationAPI = {
     return res.data;
   },
 };
+export { api };
+export default api;
