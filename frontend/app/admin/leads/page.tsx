@@ -1,66 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, Eye, Search, LayoutDashboard, ClipboardList, Users, CreditCard, Settings, LogOut } from 'lucide-react';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { clsx } from 'clsx';
+import { CheckCircle, XCircle, Eye, Search } from 'lucide-react';
 import { StatusPill } from '@/components/ui/StatCard';
-import useAuthStore from '@/lib/store';
 import api from '@/lib/api';
-
-const ADMIN_NAV = [
-  { label: 'Overview', icon: LayoutDashboard, href: '/admin/dashboard' },
-  { label: 'All Leads', icon: ClipboardList, href: '/admin/leads' },
-  { label: 'Users', icon: Users, href: '/admin/users' },
-  { label: 'Transactions', icon: CreditCard, href: '/admin/transactions' },
-  { label: 'Settings', icon: Settings, href: '/admin/settings' },
-];
-
-function AdminSidebar() {
-  const pathname = usePathname();
-  const { user, logout } = useAuthStore();
-  const router = useRouter();
-
-  return (
-    <aside className="w-56 bg-bg-2 border-r border-white/[0.07] flex flex-col min-h-screen pt-16 sticky top-0">
-      <div className="px-5 py-5 border-b border-white/[0.07]">
-        <div className="font-head text-sm font-bold">Admin Panel</div>
-        <div className="text-xs text-gray-500">LeadFlow Console</div>
-      </div>
-      <nav className="flex-1 py-4 px-3">
-        {ADMIN_NAV.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link key={item.href} href={item.href}>
-              <div className={clsx('flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all mb-0.5',
-                isActive ? 'bg-purple-500/10 text-purple-300' : 'text-gray-500 hover:text-white hover:bg-white/3'
-              )}>
-                <item.icon size={15} />
-                <span className="flex-1">{item.label}</span>
-              </div>
-            </Link>
-          );
-        })}
-      </nav>
-      <div className="p-4 border-t border-white/[0.07]">
-        <div className="flex items-center gap-2.5 mb-3">
-          <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center text-xs font-semibold text-red-300">
-            {user?.name?.charAt(0) ?? 'A'}
-          </div>
-          <div>
-            <div className="text-xs font-medium">{user?.name || 'Admin'}</div>
-            <div className="text-[10px] text-gray-500">Admin</div>
-          </div>
-        </div>
-        <button onClick={() => { logout(); router.push('/'); }}
-          className="w-full flex items-center gap-2 text-xs text-gray-500 hover:text-red-400 transition-colors px-2 py-1.5 rounded-lg hover:bg-red-500/5">
-          <LogOut size={13} /> Sign Out
-        </button>
-      </div>
-    </aside>
-  );
-}
 
 const STATUS_OPTS = ['all', 'pending', 'open', 'locked', 'sold', 'rejected'];
 
@@ -80,16 +23,15 @@ export default function AdminLeadsPage() {
 
     try {
       const params: any = {};
-      if (statusFilter !== 'all') params.status = statusFilter;
+
+      if (statusFilter !== 'all') {
+        params.status = statusFilter;
+      }
 
       const { data } = await api.get('/admin/leads', { params });
 
       const leadsData =
-        data?.leads ||
-        data?.data?.leads ||
-        data?.data ||
-        data ||
-        [];
+        data?.leads || data?.data?.leads || data?.data || data || [];
 
       setLeads(Array.isArray(leadsData) ? leadsData : []);
     } catch (err) {
@@ -105,8 +47,8 @@ export default function AdminLeadsPage() {
       await api.patch(`/admin/leads/${id}/verify`, { quality });
 
       setLeads((prev) =>
-        prev.map((l) =>
-          l._id === id ? { ...l, status: 'open', quality } : l
+        prev.map((lead) =>
+          lead._id === id ? { ...lead, status: 'open', quality } : lead
         )
       );
 
@@ -124,7 +66,9 @@ export default function AdminLeadsPage() {
       });
 
       setLeads((prev) =>
-        prev.map((l) => (l._id === id ? { ...l, status: 'rejected' } : l))
+        prev.map((lead) =>
+          lead._id === id ? { ...lead, status: 'rejected' } : lead
+        )
       );
 
       flash('Lead rejected');
@@ -134,38 +78,39 @@ export default function AdminLeadsPage() {
     }
   };
 
-  const flash = (m: string) => {
-    setMsg(m);
+  const flash = (message: string) => {
+    setMsg(message);
     setTimeout(() => setMsg(''), 3000);
   };
 
-  const filtered = leads.filter((l) => {
+  const filtered = leads.filter((lead) => {
     if (!search) return true;
+
     const q = search.toLowerCase();
 
     return (
-      l.service?.toLowerCase().includes(q) ||
-      l.location?.toLowerCase().includes(q) ||
-      l.clientName?.toLowerCase().includes(q) ||
-      l.clientEmail?.toLowerCase().includes(q) ||
-      l.clientPhone?.toLowerCase().includes(q)
+      lead.service?.toLowerCase().includes(q) ||
+      lead.location?.toLowerCase().includes(q) ||
+      lead.clientName?.toLowerCase().includes(q) ||
+      lead.clientEmail?.toLowerCase().includes(q) ||
+      lead.clientPhone?.toLowerCase().includes(q)
     );
   });
 
-  const formatBudget = (b: number) => {
-    if (!b) return '₹0';
-    return b >= 100000
-      ? `₹${(b / 100000).toFixed(1)}L`
-      : `₹${(b / 1000).toFixed(0)}K`;
+  const formatBudget = (budget: number) => {
+    if (!budget) return '₹0';
+
+    return budget >= 100000
+      ? `₹${(budget / 100000).toFixed(1)}L`
+      : `₹${(budget / 1000).toFixed(0)}K`;
   };
 
   return (
-    <div className="flex min-h-screen bg-bg">
-      <AdminSidebar />
-      <main className="flex-1 p-7">
-    <h1 className="font-head text-2xl font-extrabold mb-1">
+    <>
+      <h1 className="font-head text-2xl font-extrabold mb-1">
         Lead Management
       </h1>
+
       <p className="text-gray-400 text-sm mb-5">
         Review, verify, and quality-mark all leads.
       </p>
@@ -177,16 +122,16 @@ export default function AdminLeadsPage() {
       )}
 
       <div className="flex gap-2 flex-wrap items-center mb-5">
-        {STATUS_OPTS.map((s) => (
+        {STATUS_OPTS.map((status) => (
           <button
-            key={s}
-            onClick={() => setStatusFilter(s)}
-            className={`px-3 py-1.5 rounded-full text-xs border transition-all capitalize ${statusFilter === s
+            key={status}
+            onClick={() => setStatusFilter(status)}
+            className={`px-3 py-1.5 rounded-full text-xs border transition-all capitalize ${statusFilter === status
                 ? 'bg-purple-500/15 border-purple-500 text-purple-300'
                 : 'border-white/10 text-gray-500 hover:text-white'
               }`}
           >
-            {s}
+            {status}
           </button>
         ))}
 
@@ -195,9 +140,10 @@ export default function AdminLeadsPage() {
             size={13}
             className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
           />
+
           <input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(event) => setSearch(event.target.value)}
             placeholder="Search..."
             className="input pl-8 py-1.5 text-xs w-44"
           />
@@ -218,12 +164,12 @@ export default function AdminLeadsPage() {
                   'Status',
                   'Quality',
                   'Actions',
-                ].map((h) => (
+                ].map((heading) => (
                   <th
-                    key={h}
+                    key={heading}
                     className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide"
                   >
-                    {h}
+                    {heading}
                   </th>
                 ))}
               </tr>
@@ -231,10 +177,10 @@ export default function AdminLeadsPage() {
 
             <tbody>
               {isLoading ? (
-                [...Array(6)].map((_, i) => (
-                  <tr key={i} className="border-t border-white/[0.05]">
-                    {[...Array(8)].map((_, j) => (
-                      <td key={j} className="px-4 py-4">
+                [...Array(6)].map((_, rowIndex) => (
+                  <tr key={rowIndex} className="border-t border-white/[0.05]">
+                    {[...Array(8)].map((_, colIndex) => (
+                      <td key={colIndex} className="px-4 py-4">
                         <div className="h-3 bg-white/5 rounded animate-pulse" />
                       </td>
                     ))}
@@ -265,8 +211,12 @@ export default function AdminLeadsPage() {
                       <div className="font-medium">
                         {lead.clientName || lead.name || 'Client'}
                       </div>
+
                       <div className="text-xs text-gray-500">
-                        {lead.clientPhone || lead.clientEmail || lead.location || '—'}
+                        {lead.clientPhone ||
+                          lead.clientEmail ||
+                          lead.location ||
+                          '—'}
                       </div>
                     </td>
 
@@ -288,6 +238,7 @@ export default function AdminLeadsPage() {
                             }}
                           />
                         </div>
+
                         <span className="text-xs text-purple-300">
                           {typeof lead.intentScore === 'number'
                             ? lead.intentScore.toFixed(2)
@@ -363,7 +314,6 @@ export default function AdminLeadsPage() {
           </table>
         </div>
       </div>
-      </main>
-    </div>
+    </>
   );
 }
