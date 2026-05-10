@@ -2,10 +2,8 @@ const Lead = require('../models/Lead');
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
 const { emitNewLead } = require('../config/socket');
+const createNotification = require('../utils/createNotification');
 
-/**
- * GET /api/admin/dashboard
- */
 const getDashboard = async (req, res) => {
   try {
     const [
@@ -32,7 +30,6 @@ const getDashboard = async (req, res) => {
         .lean(),
     ]);
 
-    // Revenue MTD
     const monthStart = new Date();
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
@@ -48,80 +45,110 @@ const getDashboard = async (req, res) => {
       { $group: { _id: null, total: { $sum: '$amountINR' } } },
     ]);
 
-    const revenueMTD = revenueAgg[0]?.total || 0;
-
     res.json({
-      stats: { totalLeads, pendingLeads, openLeads, soldLeads, totalDesigners, totalClients, revenueMTD },
+      stats: {
+        totalLeads,
+        pendingLeads,
+        openLeads,
+        soldLeads,
+        totalDesigners,
+        totalClients,
+        revenueMTD: revenueAgg[0]?.total || 0,
+      },
       recentLeads,
       recentTransactions,
     });
   } catch (err) {
+    console.error('Admin dashboard error:', err);
     res.status(500).json({ error: 'Failed to load dashboard.' });
   }
 };
 
-/**
- * GET /api/admin/leads
- */
 const getAllLeads = async (req, res) => {
   try {
     const { status, quality, service, page = 1, limit = 25 } = req.query;
+
     const filter = {};
+
     if (status) filter.status = status;
     if (quality) filter.quality = quality;
     if (service) filter.service = service;
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const total = await Lead.countDocuments(filter);
+
     const leads = await Lead.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit))
-      .populate('clientId', 'name phone')
+      .populate('clientId', 'name phone email')
       .populate('purchasedBy', 'name email')
       .lean();
 
-    res.json({ leads, total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) });
+    res.json({
+      leads,
+      total,
+      page: parseInt(page),
+      pages: Math.ceil(total / parseInt(limit)),
+    });
   } catch (err) {
+    console.error('Admin get leads error:', err);
     res.status(500).json({ error: 'Failed to fetch leads.' });
   }
 };
 
-/**
- * PATCH /api/admin/leads/:id/verify
- * Approve lead → set status to open + quality
- */
 const verifyLead = async (req, res) => {
   try {
     const { quality, adminNotes } = req.body;
+
     const lead = await Lead.findById(req.params.id);
-    if (!lead) return res.status(404).json({ error: 'Lead not found.' });
+
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead not found.' });
+    }
+
     if (lead.status !== 'pending') {
-      return res.status(409).json({ error: 'Lead is not pending verification.' });
+      return res.status(409).json({
+        error: 'Lead is not pending verification.',
+      });
     }
 
     lead.status = 'open';
     lead.quality = quality || 'medium';
-    lead.adminNotes = adminNotes;
+    lead.adminNotes = adminNotes || '';
     lead.verifiedBy = req.user._id;
     lead.verifiedAt = new Date();
+
     await lead.save();
 
-    // Broadcast the new verified lead to designers in real-time
     emitNewLead(lead);
 
-    res.json({ message: 'Lead verified and now live.', lead });
+    await createNotification({
+      userId: lead.clientId,
+      title: 'Lead Verified',
+      message: 'Your submitted lead has been verified and published.',
+      type: 'lead',
+      link: '/client',
+      metadata: {
+        leadId: lead._id,
+        quality: lead.quality,
+      },
+    });
+
+    res.json({
+      message: 'Lead verified and now live.',
+      lead,
+    });
   } catch (err) {
+    console.error('Verify lead error:', err);
     res.status(500).json({ error: 'Failed to verify lead.' });
   }
 };
 
-/**
- * PATCH /api/admin/leads/:id/reject
- */
 const rejectLead = async (req, res) => {
   try {
     const { reason } = req.body;
+
     const lead = await Lead.findByIdAndUpdate(
       req.params.id,
       {
@@ -132,43 +159,100 @@ const rejectLead = async (req, res) => {
       },
       { new: true }
     );
-    if (!lead) return res.status(404).json({ error: 'Lead not found.' });
-    res.json({ message: 'Lead rejected.', lead });
+
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead not found.' });
+    }
+
+    await createNotification({
+      userId: lead.clientId,
+      title: 'Lead Rejected',
+      message: reason || 'Your submitted lead was rejected by admin.',
+      type: 'lead',
+      link: '/client',
+      metadata: {
+        leadId: lead._id,
+        reason: reason || 'Rejected by admin',
+      },
+    });
+
+    res.json({
+      message: 'Lead rejected.',
+      lead,
+    });
   } catch (err) {
+    console.error('Reject lead error:', err);
     res.status(500).json({ error: 'Failed to reject lead.' });
   }
 };
 
-/**
- * GET /api/admin/users
- */
 const getUsers = async (req, res) => {
   try {
     const { role, page = 1, limit = 25 } = req.query;
+
     const filter = {};
     if (role) filter.role = role;
+
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const total = await User.countDocuments(filter);
-    const users = await User.find(filter).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)).lean();
-    res.json({ users, total, page: parseInt(page) });
+
+    const users = await User.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .lean();
+
+    res.json({
+      users,
+      total,
+      page: parseInt(page),
+      pages: Math.ceil(total / parseInt(limit)),
+    });
   } catch (err) {
+    console.error('Admin get users error:', err);
     res.status(500).json({ error: 'Failed to fetch users.' });
   }
 };
 
-/**
- * PATCH /api/admin/users/:id/toggle-active
- */
 const toggleUserActive = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ error: 'User not found.' });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
     user.isActive = !user.isActive;
     await user.save();
-    res.json({ message: `User ${user.isActive ? 'activated' : 'deactivated'}.`, isActive: user.isActive });
+
+    await createNotification({
+      userId: user._id,
+      title: user.isActive ? 'Account Activated' : 'Account Deactivated',
+      message: user.isActive
+        ? 'Your account has been activated by admin.'
+        : 'Your account has been deactivated by admin.',
+      type: 'admin',
+      link: user.role === 'designer' ? '/designer/profile' : '/client',
+      metadata: {
+        isActive: user.isActive,
+      },
+    });
+
+    res.json({
+      message: `User ${user.isActive ? 'activated' : 'deactivated'}.`,
+      isActive: user.isActive,
+    });
   } catch (err) {
+    console.error('Toggle user active error:', err);
     res.status(500).json({ error: 'Failed to toggle user.' });
   }
 };
 
-module.exports = { getDashboard, getAllLeads, verifyLead, rejectLead, getUsers, toggleUserActive };
+module.exports = {
+  getDashboard,
+  getAllLeads,
+  verifyLead,
+  rejectLead,
+  getUsers,
+  toggleUserActive,
+};
