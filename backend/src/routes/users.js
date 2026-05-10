@@ -5,6 +5,7 @@ const Lead = require('../models/Lead');
 const { protect, restrictTo } = require('../middleware/auth');
 
 const router = express.Router();
+const Notification = require('../models/Notification');
 
 router.get('/credits', protect, async (req, res) => {
   try {
@@ -83,6 +84,60 @@ router.get('/analytics', protect, restrictTo('designer'), async (req, res) => {
   } catch (err) {
     console.error('Analytics error:', err);
     res.status(500).json({ error: 'Failed to fetch analytics.' });
+  }
+});
+
+// GET notifications
+router.get('/notifications', protect, async (req, res) => {
+  try {
+    const notifications = await Notification.find({
+      userId: req.user._id,
+    })
+      .sort({ createdAt: -1 })
+      .limit(50);
+
+    res.json({ notifications });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch notifications.' });
+  }
+});
+
+// Mark single read
+router.patch('/notifications/:id/read', protect, async (req, res) => {
+  try {
+    await Notification.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        userId: req.user._id,
+      },
+      {
+        isRead: true,
+      }
+    );
+
+    res.json({ message: 'Notification marked as read.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed.' });
+  }
+});
+
+// Mark all read
+router.patch('/notifications/read-all', protect, async (req, res) => {
+  try {
+    await Notification.updateMany(
+      {
+        userId: req.user._id,
+        isRead: false,
+      },
+      {
+        isRead: true,
+      }
+    );
+
+    res.json({ message: 'All notifications marked as read.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed.' });
   }
 });
 
