@@ -1,3 +1,6 @@
+const crypto = require('crypto');
+const Razorpay = require('razorpay');
+
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
 const { emitUserNotification } = require('../config/socket');
@@ -9,6 +12,16 @@ const CREDIT_PACKS = {
   enterprise: { credits: 500, bonusCredits: 50, priceINR: 6999 },
 };
 
+const getPaymentMode = () => process.env.PAYMENT_MODE || 'mock';
+
+const razorpay =
+  process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET
+    ? new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    })
+    : null;
+
 const createOrder = async (req, res) => {
   try {
     const { pack } = req.body;
@@ -16,20 +29,60 @@ const createOrder = async (req, res) => {
 
     if (!packConfig) {
       return res.status(400).json({
-        error: `Invalid pack. Choose from: ${Object.keys(CREDIT_PACKS).join(', ')}`,
+        error: `Invalid pack. Choose from: ${Object.keys(CREDIT_PACKS).join(
+          ', '
+        )}`,
+      });
+    }
+
+    const totalCredits = packConfig.credits + packConfig.bonusCredits;
+    const amountPaise = packConfig.priceINR * 100;
+    const paymentMode = getPaymentMode();
+
+    if (paymentMode === 'razorpay') {
+      if (!razorpay) {
+        return res.status(500).json({
+          error: 'Razorpay keys missing on server.',
+        });
+      }
+
+      const order = await razorpay.orders.create({
+        amount: amountPaise,
+        currency: 'INR',
+        receipt: `lf_${Date.now()}`,
+        notes: {
+          userId: String(req.user._id),
+          pack,
+          credits: String(totalCredits),
+        },
+      });
+
+      return res.json({
+        order: {
+          id: order.id,
+          amount: order.amount,
+          currency: order.currency,
+          pack,
+          credits: totalCredits,
+          priceINR: packConfig.priceINR,
+          paymentMode: 'razorpay',
+          keyId: process.env.RAZORPAY_KEY_ID,
+        },
       });
     }
 
     const mockOrder = {
       id: `order_mock_${Date.now()}`,
-      amount: packConfig.priceINR * 100,
+      amount: amountPaise,
       currency: 'INR',
       pack,
-      credits: packConfig.credits + packConfig.bonusCredits,
+      credits: totalCredits,
       priceINR: packConfig.priceINR,
+      paymentMode: 'mock',
+      keyId: null,
     };
 
-    res.json({ order: mockOrder });
+    return res.json({ order: mockOrder });
   } catch (err) {
     console.error('Create order error:', err);
     res.status(500).json({ error: 'Failed to create payment order.' });
@@ -38,7 +91,13 @@ const createOrder = async (req, res) => {
 
 const verifyPayment = async (req, res) => {
   try {
-    const { orderId, paymentId, pack, mockSuccess = true } = req.body;
+    const {
+      orderId,
+      paymentId,
+      signature,
+      pack,
+      mockSuccess = true,
+    } = req.body;
 
     const packConfig = CREDIT_PACKS[pack];
 
@@ -46,16 +105,47 @@ const verifyPayment = async (req, res) => {
       return res.status(400).json({ error: 'Invalid pack.' });
     }
 
-    if (!mockSuccess) {
-      return res.status(402).json({ error: 'Payment failed (mock).' });
+    const paymentMode = getPaymentMode();
+
+    if (paymentMode === 'razorpay') {
+      if (!orderId || !paymentId || !signature) {
+        return res.status(400).json({
+          error: 'Missing Razorpay payment verification fields.',
+        });
+      }
+
+      const expectedSignature = crypto
+        .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+        .update(`${orderId}|${paymentId}`)
+        .digest('hex');
+
+      if (expectedSignature !== signature) {
+        return res.status(400).json({
+          error: 'Invalid payment signature.',
+        });
+      }
+    } else {
+      if (!mockSuccess) {
+        return res.status(402).json({ error: 'Payment failed (mock).' });
+      }
     }
 
     const totalCredits = packConfig.credits + packConfig.bonusCredits;
-
     const user = await User.findById(req.user._id);
 
     if (!user) {
       return res.status(404).json({ error: 'User not found.' });
+    }
+
+    const duplicateTransaction = await Transaction.findOne({
+      paymentId: paymentId || orderId,
+      status: 'success',
+    });
+
+    if (duplicateTransaction) {
+      return res.status(409).json({
+        error: 'Payment already verified.',
+      });
     }
 
     const creditsBefore = user.credits || 0;
@@ -68,8 +158,9 @@ const verifyPayment = async (req, res) => {
       type: 'credit_purchase',
       creditsDelta: totalCredits,
       amountINR: packConfig.priceINR,
-      description: `${pack.charAt(0).toUpperCase() + pack.slice(1)} Pack — ${totalCredits} credits`,
-      paymentGateway: 'razorpay',
+      description: `${pack.charAt(0).toUpperCase() + pack.slice(1)
+        } Pack — ${totalCredits} credits`,
+      paymentGateway: paymentMode === 'razorpay' ? 'razorpay' : 'mock',
       paymentId: paymentId || `pay_mock_${Date.now()}`,
       orderId: orderId || `order_mock_${Date.now()}`,
       creditsBefore,
@@ -94,6 +185,7 @@ const verifyPayment = async (req, res) => {
         creditsAdded: totalCredits,
         totalCredits: user.credits,
         amountINR: packConfig.priceINR,
+        paymentMode,
       },
     });
 
@@ -101,6 +193,7 @@ const verifyPayment = async (req, res) => {
       message: `${totalCredits} credits added to your account!`,
       creditsAdded: totalCredits,
       totalCredits: user.credits,
+      transaction,
     });
   } catch (err) {
     console.error('Verify payment error:', err);
