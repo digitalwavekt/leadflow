@@ -6,11 +6,7 @@ import { DesignerSidebar } from '@/components/designer/DesignerSidebar';
 import { StatusPill } from '@/components/ui/StatCard';
 import api from '@/lib/api';
 
-const MOCK_PURCHASED = [
-  { _id: 'p1', service: 'Interior Design', budgetDisplay: '₹4,50,000', location: 'Whitefield, Bangalore', description: 'Complete 3BHK interior with modern minimalist theme. Needs smart storage and premium materials. Owner wants to move in within 3 months.', tags: ['Modern', 'Minimalist', '3BHK', 'Luxury'], clientName: 'Ananya Sharma', clientPhone: '+91 98201 34567', clientEmail: 'ananya@gmail.com', intentScore: 0.89, purchasedAt: new Date(Date.now() - 2 * 86400000).toISOString(), status: 'open' },
-  { _id: 'p2', service: 'Logo Design', budgetDisplay: '₹25,000', location: 'Connaught Place, Delhi', description: 'Fresh brand identity for a new specialty coffee cafe. Need a modern, memorable logo that works well on cups, bags, and signage.', tags: ['Cafe', 'Minimal', 'Playful'], clientName: 'Kiran Rao', clientPhone: '+91 97455 88821', clientEmail: 'kiran@coffeecraft.in', intentScore: 0.71, purchasedAt: new Date(Date.now() - 5 * 86400000).toISOString(), status: 'sold' },
-  { _id: 'p3', service: 'UI/UX Design', budgetDisplay: '₹1,20,000', location: 'Andheri, Mumbai', description: 'Mobile app redesign for a fintech startup. Need modern, clean UI with excellent UX flow, onboarding screens, and design system.', tags: ['Mobile App', 'Fintech', 'Modern', 'Design System'], clientName: 'Meena Pillai', clientPhone: '+91 90214 77643', clientEmail: 'meena@fintechco.com', intentScore: 0.84, purchasedAt: new Date(Date.now() - 8 * 86400000).toISOString(), status: 'open' },
-];
+
 
 export default function PurchasedLeadsPage() {
   const [leads, setLeads] = useState<any[]>([]);
@@ -32,8 +28,9 @@ export default function PurchasedLeadsPage() {
         [];
 
       setLeads(Array.isArray(leadsData) ? leadsData : []);
-    } catch {
-      setLeads(MOCK_PURCHASED);
+    } catch (err) {
+      console.error('Failed to fetch purchased leads:', err);
+      setLeads([]);
     } finally {
       setIsLoading(false);
     }
