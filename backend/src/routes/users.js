@@ -103,39 +103,27 @@ router.get('/notifications', protect, async (req, res) => {
   }
 });
 
-// Mark single read
-router.patch('/notifications/:id/read', protect, async (req, res) => {
+// Mark all read — MUST be before /:id/read to avoid route conflict
+router.patch('/notifications/read-all', protect, async (req, res) => {
   try {
-    await Notification.findOneAndUpdate(
-      {
-        _id: req.params.id,
-        userId: req.user._id,
-      },
-      {
-        isRead: true,
-      }
+    await Notification.updateMany(
+      { userId: req.user._id, isRead: false },
+      { isRead: true }
     );
-
-    res.json({ message: 'Notification marked as read.' });
+    res.json({ message: 'All notifications marked as read.' });
   } catch (err) {
     res.status(500).json({ error: 'Failed.' });
   }
 });
 
-// Mark all read
-router.patch('/notifications/read-all', protect, async (req, res) => {
+// Mark single read
+router.patch('/notifications/:id/read', protect, async (req, res) => {
   try {
-    await Notification.updateMany(
-      {
-        userId: req.user._id,
-        isRead: false,
-      },
-      {
-        isRead: true,
-      }
+    await Notification.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user._id },
+      { isRead: true }
     );
-
-    res.json({ message: 'All notifications marked as read.' });
+    res.json({ message: 'Notification marked as read.' });
   } catch (err) {
     res.status(500).json({ error: 'Failed.' });
   }

@@ -1,9 +1,66 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, Eye, Search } from 'lucide-react';
+import { CheckCircle, XCircle, Eye, Search, LayoutDashboard, ClipboardList, Users, CreditCard, Settings, LogOut } from 'lucide-react';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { clsx } from 'clsx';
 import { StatusPill } from '@/components/ui/StatCard';
+import useAuthStore from '@/lib/store';
 import api from '@/lib/api';
+
+const ADMIN_NAV = [
+  { label: 'Overview', icon: LayoutDashboard, href: '/admin/dashboard' },
+  { label: 'All Leads', icon: ClipboardList, href: '/admin/leads' },
+  { label: 'Users', icon: Users, href: '/admin/users' },
+  { label: 'Transactions', icon: CreditCard, href: '/admin/transactions' },
+  { label: 'Settings', icon: Settings, href: '/admin/settings' },
+];
+
+function AdminSidebar() {
+  const pathname = usePathname();
+  const { user, logout } = useAuthStore();
+  const router = useRouter();
+
+  return (
+    <aside className="w-56 bg-bg-2 border-r border-white/[0.07] flex flex-col min-h-screen pt-16 sticky top-0">
+      <div className="px-5 py-5 border-b border-white/[0.07]">
+        <div className="font-head text-sm font-bold">Admin Panel</div>
+        <div className="text-xs text-gray-500">LeadFlow Console</div>
+      </div>
+      <nav className="flex-1 py-4 px-3">
+        {ADMIN_NAV.map((item) => {
+          const isActive = pathname === item.href;
+          return (
+            <Link key={item.href} href={item.href}>
+              <div className={clsx('flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all mb-0.5',
+                isActive ? 'bg-purple-500/10 text-purple-300' : 'text-gray-500 hover:text-white hover:bg-white/3'
+              )}>
+                <item.icon size={15} />
+                <span className="flex-1">{item.label}</span>
+              </div>
+            </Link>
+          );
+        })}
+      </nav>
+      <div className="p-4 border-t border-white/[0.07]">
+        <div className="flex items-center gap-2.5 mb-3">
+          <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center text-xs font-semibold text-red-300">
+            {user?.name?.charAt(0) ?? 'A'}
+          </div>
+          <div>
+            <div className="text-xs font-medium">{user?.name || 'Admin'}</div>
+            <div className="text-[10px] text-gray-500">Admin</div>
+          </div>
+        </div>
+        <button onClick={() => { logout(); router.push('/'); }}
+          className="w-full flex items-center gap-2 text-xs text-gray-500 hover:text-red-400 transition-colors px-2 py-1.5 rounded-lg hover:bg-red-500/5">
+          <LogOut size={13} /> Sign Out
+        </button>
+      </div>
+    </aside>
+  );
+}
 
 const STATUS_OPTS = ['all', 'pending', 'open', 'locked', 'sold', 'rejected'];
 
@@ -103,8 +160,10 @@ export default function AdminLeadsPage() {
   };
 
   return (
-    <div className="p-7">
-      <h1 className="font-head text-2xl font-extrabold mb-1">
+    <div className="flex min-h-screen bg-bg">
+      <AdminSidebar />
+      <main className="flex-1 p-7">
+    <h1 className="font-head text-2xl font-extrabold mb-1">
         Lead Management
       </h1>
       <p className="text-gray-400 text-sm mb-5">
@@ -304,6 +363,7 @@ export default function AdminLeadsPage() {
           </table>
         </div>
       </div>
+      </main>
     </div>
   );
 }

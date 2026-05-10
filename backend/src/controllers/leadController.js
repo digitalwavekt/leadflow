@@ -95,10 +95,10 @@ const getLeads = async (req, res) => {
       .sort({ intentScore: -1, createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit))
-      .select('-clientPhone -clientId -description') // Hide PII in listing
+      .select('-clientPhone -clientId') // Keep description so teaser works; hide PII only
       .lean();
 
-    // Add a short teaser description (first 100 chars)
+    // Add a short teaser description (first 100 chars) then strip full description
     const leadsWithTeaser = leads.map((l) => ({
       ...l,
       descriptionTeaser: l.description ? l.description.substring(0, 100) + '...' : '',

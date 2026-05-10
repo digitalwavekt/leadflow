@@ -54,6 +54,9 @@ body {
   .badge-gold {
     @apply bg-yellow-500/15 text-yellow-400 text-xs px-2.5 py-1 rounded-full;
   }
+  .badge-gray {
+    @apply bg-white/8 text-gray-400 text-xs px-2.5 py-1 rounded-full;
+  }
   .badge-red {
     @apply bg-red-500/15 text-red-400 text-xs px-2.5 py-1 rounded-full;
   }

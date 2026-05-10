@@ -2,7 +2,10 @@
 
 import { Bell } from 'lucide-react';
 import { DesignerSidebar } from '@/components/designer/DesignerSidebar';
-
+import NotificationsPage from "@/components/notifications/NotificationsPage";
+export default function DesignerNotifications() {
+  return <NotificationsPage />;
+}
 export default function NotificationsPage() {
   return (
     <div className="flex min-h-screen bg-bg">

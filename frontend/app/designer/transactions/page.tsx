@@ -38,24 +38,19 @@ export default function TransactionsPage() {
     try {
       const { data } = await api.get('/payments/packs');
 
-      const packsData =
-        data?.packs ||
-        data?.data?.packs ||
-        data?.data ||
-        data ||
-        [];
+      // BUG FIX: backend returns { packs: { starter: {...}, pro: {...} } } — an object, not an array
+      const packsObj = data?.packs || data?.data?.packs || null;
 
-      if (Array.isArray(packsData) && packsData.length > 0) {
-        setPacks(
-          packsData.map((p: any) => ({
-            key: p.key || p.id || p.name?.toLowerCase() || 'pack',
-            credits: p.credits || 0,
-            bonus: p.bonus || 0,
-            price: p.price || p.amount || p.amountINR || 0,
-            label: p.label || p.name || p.key || 'Pack',
-            highlight: p.highlight || p.key === 'pro',
-          }))
-        );
+      if (packsObj && typeof packsObj === 'object' && !Array.isArray(packsObj)) {
+        const converted = Object.entries(packsObj).map(([key, p]: [string, any]) => ({
+          key,
+          credits: p.credits || 0,
+          bonus: p.bonusCredits || p.bonus || 0,
+          price: p.priceINR || p.price || p.amountINR || 0,
+          label: key.charAt(0).toUpperCase() + key.slice(1),
+          highlight: key === 'pro',
+        }));
+        setPacks(converted);
       }
     } catch (err) {
       console.error('Failed to fetch packs:', err);

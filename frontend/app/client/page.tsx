@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CheckCircle, ChevronRight, Loader2, Upload } from 'lucide-react';
 import api from '@/lib/api';
 import useAuthStore from '@/lib/store';
@@ -29,6 +29,13 @@ const STYLES = [
 export default function ClientForm() {
   const router = useRouter();
   const { user } = useAuthStore();
+
+  // BUG FIX: redirect to login if not authenticated
+  useEffect(() => {
+    if (!user) {
+      router.push('/auth/login');
+    }
+  }, [user, router]);
 
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);

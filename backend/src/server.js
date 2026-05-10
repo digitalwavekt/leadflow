@@ -22,7 +22,6 @@ const uploadRoutes = require('./routes/upload');
 
 const app = express();
 const server = http.createServer(app);
-app.use("/api/notifications", notificationRoutes);
 
 // Initialize Socket.io
 initSocket(server);
@@ -73,6 +72,8 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/upload', uploadRoutes);
+// BUG FIX: notifications route must be AFTER body parsing middleware
+app.use('/api/notifications', notificationRoutes);
 
 // ── 404 Handler ──────────────────────────────────────────────────────────────
 app.use((req, res) => {

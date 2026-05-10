@@ -10,7 +10,7 @@ const createNotification = async ({
     metadata = {},
 }) => {
     const notification = await Notification.create({
-        user: userId,
+        userId,
         title,
         message,
         type,

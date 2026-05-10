@@ -10,12 +10,12 @@ router.get("/", protect, async (req, res) => {
     try {
         const userId = req.user._id || req.user.id;
 
-        const notifications = await Notification.find({ user: userId })
+        const notifications = await Notification.find({ userId })
             .sort({ createdAt: -1 })
             .limit(50);
 
         const unreadCount = await Notification.countDocuments({
-            user: userId,
+            userId,
             isRead: false,
         });
 
@@ -33,13 +33,13 @@ router.get("/", protect, async (req, res) => {
     }
 });
 
-// PUT /api/notifications/read-all
+// PUT /api/notifications/read-all  ← MUST come before /:id routes
 router.put("/read-all", protect, async (req, res) => {
     try {
         const userId = req.user._id || req.user.id;
 
         await Notification.updateMany(
-            { user: userId, isRead: false },
+            { userId, isRead: false },
             { isRead: true }
         );
 
@@ -56,72 +56,7 @@ router.put("/read-all", protect, async (req, res) => {
     }
 });
 
-// PUT /api/notifications/:id/read
-router.put("/:id/read", protect, async (req, res) => {
-    try {
-        const userId = req.user._id || req.user.id;
-
-        const notification = await Notification.findOneAndUpdate(
-            {
-                _id: req.params.id,
-                user: userId,
-            },
-            { isRead: true },
-            { new: true }
-        );
-
-        if (!notification) {
-            return res.status(404).json({
-                success: false,
-                message: "Notification not found",
-            });
-        }
-
-        res.json({
-            success: true,
-            notification,
-        });
-    } catch (error) {
-        console.error("Mark notification read error:", error);
-        res.status(500).json({
-            success: false,
-            message: "Failed to mark notification as read",
-        });
-    }
-});
-
-// DELETE /api/notifications/:id
-router.delete("/:id", protect, async (req, res) => {
-    try {
-        const userId = req.user._id || req.user.id;
-
-        const notification = await Notification.findOneAndDelete({
-            _id: req.params.id,
-            user: userId,
-        });
-
-        if (!notification) {
-            return res.status(404).json({
-                success: false,
-                message: "Notification not found",
-            });
-        }
-
-        res.json({
-            success: true,
-            message: "Notification deleted",
-        });
-    } catch (error) {
-        console.error("Delete notification error:", error);
-        res.status(500).json({
-            success: false,
-            message: "Failed to delete notification",
-        });
-    }
-});
-
-// Optional test route
-// POST /api/notifications/test
+// POST /api/notifications/test  ← MUST come before /:id routes
 router.post("/test", protect, async (req, res) => {
     try {
         const userId = req.user._id || req.user.id;
@@ -143,6 +78,61 @@ router.post("/test", protect, async (req, res) => {
         res.status(500).json({
             success: false,
             message: "Failed to create test notification",
+        });
+    }
+});
+
+// PUT /api/notifications/:id/read
+router.put("/:id/read", protect, async (req, res) => {
+    try {
+        const userId = req.user._id || req.user.id;
+
+        const notification = await Notification.findOneAndUpdate(
+            { _id: req.params.id, userId },
+            { isRead: true },
+            { new: true }
+        );
+
+        if (!notification) {
+            return res.status(404).json({
+                success: false,
+                message: "Notification not found",
+            });
+        }
+
+        res.json({ success: true, notification });
+    } catch (error) {
+        console.error("Mark notification read error:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to mark notification as read",
+        });
+    }
+});
+
+// DELETE /api/notifications/:id
+router.delete("/:id", protect, async (req, res) => {
+    try {
+        const userId = req.user._id || req.user.id;
+
+        const notification = await Notification.findOneAndDelete({
+            _id: req.params.id,
+            userId,
+        });
+
+        if (!notification) {
+            return res.status(404).json({
+                success: false,
+                message: "Notification not found",
+            });
+        }
+
+        res.json({ success: true, message: "Notification deleted" });
+    } catch (error) {
+        console.error("Delete notification error:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to delete notification",
         });
     }
 });

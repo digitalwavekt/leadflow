@@ -7,7 +7,7 @@ import useAuthStore from '@/lib/store';
 let globalSocket: Socket | null = null;
 
 export function useSocket() {
-  const { token, user, setCredits } = useAuthStore();
+  const { token, setCredits } = useAuthStore();
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
@@ -28,17 +28,19 @@ export function useSocket() {
 
     socket.on('connect', () => {
       console.log('🔌 Socket connected');
+      // BUG FIX: join designer room on connect so lead:new events are received
+      socket.emit('join_designers_room');
     });
 
     socket.on('disconnect', () => {
       console.log('🔴 Socket disconnected');
     });
 
-    socket.on('credits:added', ({ credits, total }) => {
+    socket.on('credits:added', ({ total }: { credits: number; total: number }) => {
       setCredits(total);
     });
 
-    socket.on('credits:refunded', ({ credits }) => {
+    socket.on('credits:refunded', () => {
       useAuthStore.getState().refreshCredits();
     });
 
@@ -50,16 +52,26 @@ export function useSocket() {
     };
   }, [token]);
 
+  // BUG FIX: always use globalSocket (not stale socketRef) so events attach
+  // even if the hook is called before socket connects
   const on = useCallback((event: string, handler: (...args: any[]) => void) => {
-    socketRef.current?.on(event, handler);
-    return () => socketRef.current?.off(event, handler);
+    const sock = globalSocket || socketRef.current;
+    if (!sock) return () => {};
+    sock.on(event, handler);
+    return () => sock.off(event, handler);
   }, []);
 
   const off = useCallback((event: string, handler?: (...args: any[]) => void) => {
-    socketRef.current?.off(event, handler);
+    const sock = globalSocket || socketRef.current;
+    sock?.off(event, handler);
   }, []);
 
-  return { socket: socketRef.current, on, off };
+  const emit = useCallback((event: string, ...args: any[]) => {
+    const sock = globalSocket || socketRef.current;
+    sock?.emit(event, ...args);
+  }, []);
+
+  return { socket: globalSocket || socketRef.current, on, off, emit };
 }
 
 export { globalSocket };
